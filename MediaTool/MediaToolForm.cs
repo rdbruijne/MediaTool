@@ -8,6 +8,9 @@ namespace MediaTool
 {
 	public partial class MediaToolForm : Form
 	{
+		// command line specific
+		private bool QuitOnDone = false;
+
 		// source/target
 		private string SourcePath
 		{
@@ -105,6 +108,10 @@ namespace MediaTool
 						AddPrefix = true;
 						PrefixText = cmdVal;
 					}
+					else if (GetCommandValue(cmd, "-q", ref cmdVal))
+					{
+						QuitOnDone = true;
+					}
 					else if (GetCommandValue(cmd, "-r", ref cmdVal))
 					{
 						RandomizeNames = true;
@@ -122,7 +129,7 @@ namespace MediaTool
 						UpdateTags = true;
 					}
 				}
-				Validate();
+				ValidateOptions(null, null);
 				if (CanExecute)
 					ExecuteButton_Click(null, null);
 			}
@@ -356,7 +363,7 @@ namespace MediaTool
 							Directory.CreateDirectory(subDirs[subdirIx]);
 						subdirIx = (subdirIx + 1) % subDirs.Length;
 					}
-					File.Copy(sourcePath, targetPath);
+					File.Copy(sourcePath, targetPath, true);
 				}
 				else
 				{
@@ -403,6 +410,9 @@ namespace MediaTool
 			ProgressBar.Value = 0;
 			StatusLabel.Text = e.Cancelled ? "Cancelled" : (e.Error == null ? "Done" : "Error: " + e.Error.Message);
 			StatusLabel.ToolTipText = StatusLabel.Text;
+
+			if (QuitOnDone)
+				Close();
 		}
 
 
