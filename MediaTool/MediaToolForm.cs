@@ -8,8 +8,7 @@ namespace MediaTool
 {
 	public partial class MediaToolForm : Form
 	{
-		#region shorthands
-		// shorthands
+		// source/target
 		private string SourcePath
 		{
 			get { return SourcePathTextBox.Text; }
@@ -22,32 +21,115 @@ namespace MediaTool
 			set { TargetPathTextBox.Text = value; }
 		}
 
+		// status
 		private bool CopyFiles => IsValidPath(TargetPath);
-		private bool CreateSubdirs => CreateSubdirsCheckBox.Enabled && CreateSubdirsCheckBox.Checked;
-		private bool AddPrefix => PrefixCheckBox.Enabled && PrefixCheckBox.Checked;
-		private bool RandomizeNames => RandomizeCheckBox.Enabled && RandomizeCheckBox.Checked;
-		private bool UpdateTags => UpdateTagsCheckBox.Enabled && UpdateTagsCheckBox.Checked;
+		private bool CanExecute => ExecuteButton.Enabled;
 
-		private int SubDirCount => (int)SubdirUpDown.Value;
-		private int RandomNameLength => (int)RandomizeUpDown.Value;
-
-		private string PrefixText => AddPrefix ? PrefixTextBox.Text : "";
-		#endregion
+		// checkboxes
+		private bool CreateSubdirs
+		{
+			get { return CreateSubdirsCheckBox.Enabled && CreateSubdirsCheckBox.Checked; }
+			set { CreateSubdirsCheckBox.Checked = value; }
+		}
 
 
-		#region construction
-		// constructor
+		private bool AddPrefix
+		{
+			get { return PrefixCheckBox.Enabled && PrefixCheckBox.Checked; }
+			set { PrefixCheckBox.Checked = value; }
+		}
+
+
+		private bool RandomizeNames
+		{
+			get { return RandomizeCheckBox.Enabled && RandomizeCheckBox.Checked; }
+			set { RandomizeCheckBox.Checked = value; }
+		}
+
+		private bool UpdateTags
+		{
+			get { return UpdateTagsCheckBox.Enabled && UpdateTagsCheckBox.Checked; }
+			set { UpdateTagsCheckBox.Checked = value; }
+		}
+
+
+		// tickers
+		private int SubDirCount
+		{
+			get { return (int)SubdirUpDown.Value; }
+			set { SubdirUpDown.Value = (decimal)value; }
+		}
+		private int RandomNameLength
+		{
+			get { return (int)RandomizeUpDown.Value; }
+			set { RandomizeUpDown.Value = (decimal)value; }
+		}
+
+		// strings
+		private string PrefixText
+		{
+			get { return PrefixTextBox.Text; }
+			set { PrefixTextBox.Text = value; }
+		}
+
+
+
+		//
+		// construction
+		//
 		public MediaToolForm()
 		{
 			InitializeComponent();
 
 			StatusLabel.Text = "";
 			ProgressBar.Value = 0;
+
+			// command line
+			string[] commandLine = Environment.GetCommandLineArgs();
+			if (commandLine.Length > 1)
+			{
+				for (int i = 1; i < commandLine.Length; i++)
+				{
+					string cmd = commandLine[i];
+					string cmdVal = "";
+					if (GetCommandValue(cmd, "-i", ref cmdVal))
+					{
+						SourcePath = cmdVal;
+					}
+					else if (GetCommandValue(cmd, "-o", ref cmdVal))
+					{
+						TargetPath = cmdVal;
+					}
+					else if (GetCommandValue(cmd, "-p", ref cmdVal))
+					{
+						AddPrefix = true;
+						PrefixText = cmdVal;
+					}
+					else if (GetCommandValue(cmd, "-r", ref cmdVal))
+					{
+						RandomizeNames = true;
+						if (int.TryParse(cmdVal, out int len))
+							RandomNameLength = len;
+					}
+					else if (GetCommandValue(cmd, "-s", ref cmdVal))
+					{
+						CreateSubdirs = true;
+						if (int.TryParse(cmdVal, out int cnt))
+							SubDirCount = cnt;
+					}
+					else if (GetCommandValue(cmd, "-t", ref cmdVal))
+					{
+						UpdateTags = true;
+					}
+				}
+				Validate();
+				if (CanExecute)
+					ExecuteButton_Click(null, null);
+			}
 		}
-		#endregion
 
 
-		#region utility
+
 		//
 		// Utility
 		//
@@ -70,11 +152,21 @@ namespace MediaTool
 		{
 			return new string(Enumerable.Repeat(chars, length).Select(s => s[rand.Next(s.Length)]).ToArray());
 		}
-		#endregion
 
 
 
-		#region validation
+		private bool GetCommandValue(string source, string command, ref string result)
+		{
+			result = "";
+			if (source.IndexOf(command, StringComparison.CurrentCultureIgnoreCase) != 0)
+				return false;
+
+			result = source.Substring(command.Length);
+			return true;
+		}
+
+
+
 		//
 		// Validate
 		//
@@ -90,11 +182,9 @@ namespace MediaTool
 			if (SourcePath == TargetPath)
 				ExecuteButton.Enabled = false;
 		}
-		#endregion
 
 
 
-		#region folder select
 		//
 		// Folder select
 		//
@@ -177,11 +267,9 @@ namespace MediaTool
 				TargetPath = path;
 			ValidateOptions(sender, e as EventArgs);
 		}
-		#endregion
 
 
 
-		#region options
 		//
 		// Option select
 		//
@@ -206,11 +294,9 @@ namespace MediaTool
 			RandomizeUpDown.Enabled = RandomizeCheckBox.Checked;
 			ValidateOptions(sender, e);
 		}
-		#endregion
 
 
 
-		#region execute
 		//
 		// Execute
 		//
@@ -232,7 +318,8 @@ namespace MediaTool
 			Random rnd = new Random();
 
 			// check for copy status
-			string[] subDirs = Enumerable.Range(0, SubDirCount).Select(x => TargetPath + Path.DirectorySeparatorChar + x.ToString()).ToArray();
+			string numberOfLeadingZeroes = new string('0', (int)Math.Ceiling(Math.Log10(SubDirCount)));
+			string[] subDirs = Enumerable.Range(0, SubDirCount).Select(x => TargetPath + Path.DirectorySeparatorChar + x.ToString(numberOfLeadingZeroes)).ToArray();
 			int subdirIx = 0;
 
 			if (CopyFiles && !Directory.Exists(TargetPath))
@@ -291,7 +378,7 @@ namespace MediaTool
 							tagFile.Save();
 						}
 					}
-					catch (Exception ex)
+					catch (Exception)
 					{
 						// was not a media file
 					}
@@ -325,6 +412,5 @@ namespace MediaTool
 		{
 			HoverToolTip.SetToolTip(sender as StatusStrip, StatusLabel.ToolTipText);
 		}
-		#endregion
 	}
 }
